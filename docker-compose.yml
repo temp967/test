@@ -1,0 +1,77 @@
+networks:
+  internet-net:
+    driver: bridge
+    # TODO (Part 1): This network allows outbound internet access.
+    # No additional config needed here — bridge networks have internet by default.
+
+  internal-net:
+    driver: bridge
+    internal: true   # TODO (Part 1): Uncomment or keep this line to isolate the network.
+    # Containers on this network cannot reach external IPs.
+
+volumes:
+  rabbitmq-data:
+  results-data:
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - internal-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build:
+      context: ./services/api
+    ports:
+      - "8080:8080"
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+    networks:
+      # TODO (Part 1): api needs BOTH networks — why?
+      - internet-net
+      - internal-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  scanner:
+    build:
+      context: ./services/scanner
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+    networks:
+      # TODO (Part 1): Which network(s) does the scanner need, and why?
+      - internet-net
+      - internal-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  results-processor:
+    build:
+      context: ./services/results-processor
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+    volumes:
+      - results-data:/data
+    networks:
+      # TODO (Part 1): results-processor must NOT have internet access.
+      # Which single network should it be on?
+      - internal-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
