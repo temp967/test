@@ -22,6 +22,47 @@ At the end of this assignment we expect to see four things working together:
 4. **Network segmentation enforced in depth** — certain workloads have internet access, others are completely isolated, and all permitted egress flows through a controlled path you own.
 
 ---
+## Requirements
+
+### 1. Infrastructure as Code
+
+Provision all AWS resources using IaC (Terraform preferred). No manual console steps. The full environment must be reproducible from a single `terraform apply`.
+
+### 2. Self-managed Kubernetes
+
+Deploy a Kubernetes cluster on EC2 **without using EKS or any other managed Kubernetes service**. You choose the bootstrapping tool (kubeadm, k3s, RKE2, or similar) and justify the choice.
+
+### 3. Application Deployment
+
+Deploy all four application components and RabbitMQ into the cluster. Use Kubernetes-native manifests, Helm charts, or Kustomize — your choice. The API must be reachable from outside the cluster.
+
+### 4. CI/CD Pipeline with Self-hosted Runner
+
+Implement an automated pipeline that covers the full delivery lifecycle. The following behaviours are required:
+
+**On every commit to any branch:**
+- Build all three container images (`api`, `scanner`, `results-processor`).
+- Scan each image for vulnerabilities using a tool of your choice (e.g. Trivy). The pipeline must fail if a HIGH or CRITICAL CVE is found.
+- Run `terraform validate` and `terraform fmt -check` to catch syntax errors early.
+
+**On every pull request / merge request targeting `main`:**
+- Run `terraform plan` and surface the output as a comment or artifact so reviewers can see what infrastructure will change before approving.
+
+**On merge to `main`:**
+- Push the built and scanned images to a container registry.
+- Run `terraform apply` to converge infrastructure state.
+- Deploy the new images to the Kubernetes cluster without manual `kubectl` commands. The pipeline must wait for the rollout to complete and fail if any deployment does not reach a healthy state.
+
+**Runner requirements:**
+- The runner must be provisioned as part of your Terraform code and run on a dedicated EC2 instance inside your infrastructure — not on a cloud-hosted runner (e.g. GitHub-hosted, GitLab SaaS runners).
+- The runner must authenticate to AWS using its IAM instance role — no access keys stored in the pipeline.
+- Document how to register the runner and rotate its registration token.
+
+**Pipeline as a security control:**
+- No image may be pushed to the registry outside of the pipeline.
+- No `terraform apply` or `kubectl` command may target the cluster outside of the pipeline.
+- Document how you would enforce this (e.g. IAM policy, branch protection, registry push restrictions).
+
 
 ## The Application
 
@@ -83,47 +124,6 @@ As part of this assignment, implement a CI/CD pipeline that treats infrastructur
 You do not need a fully productionised pipeline with every bell and whistle. You do need one that demonstrates the principle: every change goes through automation, and the automation enforces the rules humans forget.
 
 ---
-
-## Requirements
-
-### 1. Infrastructure as Code
-
-Provision all AWS resources using IaC (Terraform preferred). No manual console steps. The full environment must be reproducible from a single `terraform apply`.
-
-### 2. Self-managed Kubernetes
-
-Deploy a Kubernetes cluster on EC2 **without using EKS or any other managed Kubernetes service**. You choose the bootstrapping tool (kubeadm, k3s, RKE2, or similar) and justify the choice.
-
-### 3. Application Deployment
-
-Deploy all four application components and RabbitMQ into the cluster. Use Kubernetes-native manifests, Helm charts, or Kustomize — your choice. The API must be reachable from outside the cluster.
-
-### 4. CI/CD Pipeline with Self-hosted Runner
-
-Implement an automated pipeline that covers the full delivery lifecycle. The following behaviours are required:
-
-**On every commit to any branch:**
-- Build all three container images (`api`, `scanner`, `results-processor`).
-- Scan each image for vulnerabilities using a tool of your choice (e.g. Trivy). The pipeline must fail if a HIGH or CRITICAL CVE is found.
-- Run `terraform validate` and `terraform fmt -check` to catch syntax errors early.
-
-**On every pull request / merge request targeting `main`:**
-- Run `terraform plan` and surface the output as a comment or artifact so reviewers can see what infrastructure will change before approving.
-
-**On merge to `main`:**
-- Push the built and scanned images to a container registry.
-- Run `terraform apply` to converge infrastructure state.
-- Deploy the new images to the Kubernetes cluster without manual `kubectl` commands. The pipeline must wait for the rollout to complete and fail if any deployment does not reach a healthy state.
-
-**Runner requirements:**
-- The runner must be provisioned as part of your Terraform code and run on a dedicated EC2 instance inside your infrastructure — not on a cloud-hosted runner (e.g. GitHub-hosted, GitLab SaaS runners).
-- The runner must authenticate to AWS using its IAM instance role — no access keys stored in the pipeline.
-- Document how to register the runner and rotate its registration token.
-
-**Pipeline as a security control:**
-- No image may be pushed to the registry outside of the pipeline.
-- No `terraform apply` or `kubectl` command may target the cluster outside of the pipeline.
-- Document how you would enforce this (e.g. IAM policy, branch protection, registry push restrictions).
 
 ### 5. Event-driven Scaling
 
