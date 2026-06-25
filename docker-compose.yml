@@ -6,7 +6,7 @@ networks:
 
   internal-net:
     driver: bridge
-    internal: true   # TODO (Part 1): Uncomment or keep this line to isolate the network.
+    internal: true   
     # Containers on this network cannot reach external IPs.
 
 volumes:
@@ -41,7 +41,6 @@ services:
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
     networks:
-      # TODO (Part 1): api needs BOTH networks — why?
       - internet-net
       - internal-net
     depends_on:
@@ -54,7 +53,6 @@ services:
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
     networks:
-      # TODO (Part 1): Which network(s) does the scanner need, and why?
       - internet-net
       - internal-net
     depends_on:
@@ -70,7 +68,6 @@ services:
       - results-data:/data
     networks:
       # TODO (Part 1): results-processor must NOT have internet access.
-      # Which single network should it be on?
       - internal-net
     depends_on:
       rabbitmq:
