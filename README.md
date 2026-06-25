@@ -100,13 +100,30 @@ Deploy all four application components and RabbitMQ into the cluster. Use Kubern
 
 ### 4. CI/CD Pipeline with Self-hosted Runner
 
-Implement an automated pipeline that covers the full delivery lifecycle:
+Implement an automated pipeline that covers the full delivery lifecycle. The following behaviours are required:
 
-- Build and scan container images on every commit.
-- Validate infrastructure changes on pull requests; apply on merge to main.
-- Deploy updated images to the cluster without manual intervention.
+**On every commit to any branch:**
+- Build all three container images (`api`, `scanner`, `results-processor`).
+- Scan each image for vulnerabilities using a tool of your choice (e.g. Trivy). The pipeline must fail if a HIGH or CRITICAL CVE is found.
+- Run `terraform validate` and `terraform fmt -check` to catch syntax errors early.
 
-The pipeline runner must be provisioned as part of your infrastructure and run inside the cluster or on a dedicated EC2 instance — not on a managed CI runner. Include the runner setup in your IaC and document how to register it.
+**On every pull request / merge request targeting `main`:**
+- Run `terraform plan` and surface the output as a comment or artifact so reviewers can see what infrastructure will change before approving.
+
+**On merge to `main`:**
+- Push the built and scanned images to a container registry.
+- Run `terraform apply` to converge infrastructure state.
+- Deploy the new images to the Kubernetes cluster without manual `kubectl` commands. The pipeline must wait for the rollout to complete and fail if any deployment does not reach a healthy state.
+
+**Runner requirements:**
+- The runner must be provisioned as part of your Terraform code and run on a dedicated EC2 instance inside your infrastructure — not on a cloud-hosted runner (e.g. GitHub-hosted, GitLab SaaS runners).
+- The runner must authenticate to AWS using its IAM instance role — no access keys stored in the pipeline.
+- Document how to register the runner and rotate its registration token.
+
+**Pipeline as a security control:**
+- No image may be pushed to the registry outside of the pipeline.
+- No `terraform apply` or `kubectl` command may target the cluster outside of the pipeline.
+- Document how you would enforce this (e.g. IAM policy, branch protection, registry push restrictions).
 
 ### 5. Event-driven Scaling
 
@@ -147,20 +164,6 @@ infra/
 ```
 
 Each area must be present and functional. Partial work should be documented in `tradeoffs.md` — an honest gap analysis is valued over something that looks complete but doesn't work.
-
----
-
-## Evaluation Criteria
-
-| Area | Weight |
-|---|---|
-| Egress architecture — correctness, isolation enforcement, no managed shortcuts | 25% |
-| Kubernetes operational knowledge — cluster setup, workload config, health probes | 20% |
-| Infrastructure design and IaC quality | 15% |
-| CI/CD pipeline and self-hosted runner | 15% |
-| Event-driven scaling implementation | 10% |
-| Observability depth and usefulness | 10% |
-| Documentation clarity and technical honesty | 5% |
 
 ---
 
